@@ -62,6 +62,15 @@ later offsets.
 One edge, measured: a run of adjacent unknown tokens (`"teh teh teh"`) comes
 back as a **single** result covering all of it, with no suggestions.
 
+## Finding in one copy, applying to another
+
+`SpellChecker.edits(for:)` and `Typography.edits(for:)` hand back the
+replacements without making them, and `Replace.apply(_:to:)` makes them
+back to front. That split is what lets a caller blank a README's code
+blocks before checking — otherwise every identifier comes back misspelled —
+and still write the original file back with its code intact. Masking
+preserves every offset, so the edits transfer exactly.
+
 ## Typography
 
 `Typography.polish` applies smart quotes and dashes through the same
@@ -71,9 +80,10 @@ them backwards.
 
 ## Tested
 
-20 tests, including the flooding, the dialect disagreement, the language
+24 tests, including the flooding, the dialect disagreement, the language
 restore, back-to-front replacement, and columns counted in Characters rather
-than UTF-16 units so an emoji earlier in the line moves the column by one.
+than UTF-16 units so an emoji earlier in the line moves the column by one,
+and edits found in a masked copy landing correctly on the original.
 
 ## Licence
 

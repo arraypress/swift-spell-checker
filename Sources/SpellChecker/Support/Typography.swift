@@ -28,6 +28,21 @@ public enum Typography {
 
     /// Applies smart quotes and dashes.
     public static func polish(_ text: String) -> (text: String, changes: [Change]) {
+        let changes = substitutions(in: text)
+        return (Replace.apply(edits(for: changes), to: text), changes)
+    }
+
+    /// The edits a set of changes implies, so a caller can find them in a
+    /// masked copy of a document and apply them to the original — curly
+    /// quotes inside a code fence would break the code.
+    public static func edits(for changes: [Change]) -> [Edit] {
+        changes.map {
+            Edit(offset: $0.offset, length: ($0.from as NSString).length, text: $0.to)
+        }
+    }
+
+    /// The substitutions macOS would make, without making them.
+    public static func substitutions(in text: String) -> [Change] {
         let checker = NSSpellChecker.shared
         let tag = NSSpellChecker.uniqueSpellDocumentTag()
         defer { checker.closeSpellDocument(withTag: tag) }
@@ -40,18 +55,13 @@ public enum Typography {
             options: nil, inSpellDocumentWithTag: tag, orthography: nil, wordCount: nil)
 
         let positions = TextPosition(text)
-        var changes: [Change] = []
-        let output = NSMutableString(string: text)
-        /// Back to front, so earlier offsets stay valid as the string shifts.
-        for result in results.reversed() {
-            guard let replacement = result.replacementString else { continue }
+        return results.compactMap { result in
+            guard let replacement = result.replacementString else { return nil }
             let original = string.substring(with: result.range)
-            guard original != replacement else { continue }
-            output.replaceCharacters(in: result.range, with: replacement)
+            guard original != replacement else { return nil }
             let position = positions.at(result.range.location)
-            changes.insert(Change(from: original, to: replacement, offset: result.range.location,
-                                  line: position.line, column: position.column), at: 0)
+            return Change(from: original, to: replacement, offset: result.range.location,
+                          line: position.line, column: position.column)
         }
-        return (output as String, changes)
     }
 }

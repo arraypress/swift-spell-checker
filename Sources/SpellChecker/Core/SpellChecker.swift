@@ -121,17 +121,22 @@ public enum SpellChecker {
 
         let found = try check(text, language: language, suggestions: 1)
         let applied = found.filter { $0.correction != nil }
-        guard !applied.isEmpty else { return (text, []) }
+        return (Replace.apply(edits(for: applied), to: text), applied)
+    }
 
-        /// Back to front, so each replacement leaves the offsets of the ones
-        /// still to come untouched.
-        let result = NSMutableString(string: text)
-        for misspelling in applied.reversed() {
-            result.replaceCharacters(
-                in: NSRange(location: misspelling.offset, length: misspelling.length),
-                with: misspelling.correction!)
+    /// The edits a set of misspellings implies.
+    ///
+    /// Separate from ``corrected(_:language:)`` so a caller can **find** in
+    /// one copy of a document and **apply** to another. That is not a
+    /// contrivance: checking a README means blanking its code blocks first,
+    /// and the corrected file has to be the original with the code still in
+    /// it. Masking preserves every offset, so the edits transfer exactly.
+    public static func edits(for misspellings: [Misspelling]) -> [Edit] {
+        misspellings.compactMap { misspelling in
+            misspelling.correction.map {
+                Edit(offset: misspelling.offset, length: misspelling.length, text: $0)
+            }
         }
-        return (result as String, applied)
     }
 
     // MARK: - The user's own dictionary

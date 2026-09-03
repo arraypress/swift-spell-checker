@@ -164,3 +164,40 @@ final class TextPositionTests: XCTestCase {
         XCTAssertEqual(positions.at(500).line, 1)
     }
 }
+
+@MainActor
+final class ReplaceTests: XCTestCase {
+
+    func testEditsFoundInAMaskedCopyApplyToTheOriginal() throws {
+        // The case this exists for: a README's code blocks are blanked
+        // before checking, or every identifier comes back misspelled — but
+        // the file written back has to be the original, code and all.
+        // Masking keeps every offset, so the edits transfer exactly.
+        let original = "Please recieve `npm instal` teh parcel."
+        let masked   = "Please recieve              teh parcel."
+        XCTAssertEqual((original as NSString).length, (masked as NSString).length)
+
+        let found = try SpellChecker.check(masked, suggestions: 1)
+        let fixed = Replace.apply(SpellChecker.edits(for: found), to: original)
+        XCTAssertEqual(fixed, "Please receive `npm instal` the parcel.")
+    }
+
+    func testAnEditPastTheEndIsSkippedNotTrapped() {
+        XCTAssertEqual(Replace.apply([Edit(offset: 90, length: 4, text: "x")], to: "short"), "short")
+    }
+
+    func testEditsApplyBackToFrontWhateverOrderTheyArriveIn() {
+        // Given out of order on purpose: sorting is the whole job.
+        let edits = [Edit(offset: 0, length: 3, text: "AAAA"), Edit(offset: 8, length: 5, text: "B")]
+        XCTAssertEqual(Replace.apply(edits, to: "one two three"), "AAAA two B")
+    }
+
+    func testTypographyEditsTransferToTheOriginalToo() {
+        let original = "say \"hi\" in `\"quoted\"`"
+        let masked   = "say \"hi\" in           "
+        XCTAssertEqual((original as NSString).length, (masked as NSString).length)
+        let changes = Typography.substitutions(in: masked)
+        let polished = Replace.apply(Typography.edits(for: changes), to: original)
+        XCTAssertEqual(polished, "say \u{201C}hi\u{201D} in `\"quoted\"`")
+    }
+}
