@@ -6,10 +6,14 @@
 //  written somewhere else.
 //
 
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
 import AppKit
 import Foundation
 
 /// Straight quotes to curly, double hyphens to em dashes.
+///
+/// **macOS only.** The quote and dash substitutions come from
+/// `NSSpellChecker`'s text-checking types; UIKit exposes no public equivalent.
 ///
 /// The same `NSTextCheckingResult` machinery behind "Smart Quotes" in every
 /// Mac text field, which is why it gets apostrophes right in `it's` and
@@ -65,3 +69,4 @@ public enum Typography {
         }
     }
 }
+#endif

@@ -1,6 +1,7 @@
 # Swift SpellChecker
 
-macOS's own dictionaries — 44 languages, already on the machine.
+The system's own dictionaries — 44 languages on a Mac, already on the machine — and
+the same ones on iOS. One API over `NSSpellChecker` and `UITextChecker`.
 
 ```swift
 import SpellChecker
@@ -14,11 +15,64 @@ let (fixed, applied) = try SpellChecker.corrected("Please recieve teh parcel.")
 // "Please receive the parcel."
 
 let (polished, _) = Typography.polish("She said \"hello\" -- quietly.")
-// "She said “hello” — quietly."
+// "She said “hello” — quietly."                      (macOS only)
+
+SpellChecker.complete("keybo", language: "en_GB")   // ["keyboard", "keyboards", "keyboardist", …]
+SpellChecker.suggestions(for: "recieve")            // ["receive", "relieve"]
 ```
 
-No download, no network, no model. `AppKit` is needed; a running
-`NSApplication` is not, so this works from a plain command-line tool.
+No download, no network, no model. On the Mac `AppKit` is needed but a running
+`NSApplication` is not, so this works from a plain command-line tool. On iOS,
+tvOS, visionOS and Catalyst the same calls go through `UITextChecker` — see
+**On iOS** below for the two ways that platform differs.
+
+## Completions and suggestions
+
+`complete(_:language:limit:)` is a keyboard's suggestion strip: the words a
+prefix could become, commonest first. Measured on macOS 27, `en_GB`:
+
+| prefix | result | ms |
+|---|---|---|
+| `th` | this, that, the, thanks, they | 4 |
+| `keybo` | keyboard, keyboards, keyboardist, keyboarding | 3 |
+| `colou` | colourful, colours, colour, colouring | 2 |
+| `colo` (en_US) | color, colors, colorful | 3 |
+| `colo` (en_GB) | colonel, colonial, cologne | 3 |
+| `xqz` | nothing — no guessing | 3 |
+
+`suggestions(for:language:limit:)` is the other direction: alternatives for
+a word that may be wrong — `recieve` → receive, relieve. Both are what
+``check`` already uses per misspelling, exposed on their own so a caller can
+ask about one word without checking a document.
+
+## On iOS
+
+Same dictionaries, smaller API. The differences, measured on an iPhone 17
+Pro simulator and stated rather than hidden:
+
+- **No automatic language identification.** `UITextChecker` requires a
+  language, so `language: nil` means the current locale's dictionary — not
+  "work it out". Text in another language needs its code passed.
+- **Dialect codes only.** iOS lists `en_GB`, `en_US`, … and no bare `en`, so
+  a code resolves exact → base (`fr_CA` → `fr`) → any dialect (`en` → `en_GB`).
+  Only the dictionaries the device has are listed; the simulator ships
+  English alone, so `fr_CA` throws `SpellError.unknownLanguage` there.
+- **No single confident correction.** `Misspelling.correction` is always
+  nil on iOS, so `corrected(_:)` returns the text unchanged there. Show
+  `suggestions` instead — that is what a keyboard does anyway.
+- **One result per unknown word.** A run like `teh teh teh` is three
+  misspellings on iOS; the Mac merges it into one.
+- **Latency.** Completions measured 55–66 ms a call on the simulator against
+  4 ms on the Mac — with one shared `UITextChecker`. A fresh instance per
+  call measured 250 ms, which is why the engine keeps one. Real devices are
+  faster than the simulator; debounce per keystroke regardless.
+
+`Typography` (smart quotes and dashes) is macOS only: the substitutions come
+from `NSSpellChecker`'s text-checking types, and UIKit exposes no public
+equivalent.
+
+Everything is `@MainActor`, which is what `UITextChecker` demands and what a
+text field is on anyway.
 
 ## Grammar is not here, on purpose
 
@@ -80,10 +134,12 @@ them backwards.
 
 ## Tested
 
-24 tests, including the flooding, the dialect disagreement, the language
-restore, back-to-front replacement, and columns counted in Characters rather
-than UTF-16 units so an emoji earlier in the line moves the column by one,
-and edits found in a masked copy landing correctly on the original.
+28 tests on macOS and 18 on the iOS simulator (`xcodebuild test -scheme
+SpellChecker -destination 'platform=iOS Simulator,name=iPhone 17 Pro'`). The
+Mac-only behaviours — automatic language identification, confident
+corrections, merged runs, `Typography` — are guarded with `#if os(macOS)`;
+the iOS run has its own tests for each place the platform differs. Every
+number in this README comes from one of those runs.
 
 ## Licence
 
