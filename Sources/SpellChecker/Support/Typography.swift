@@ -23,10 +23,15 @@ public enum Typography {
 
     /// One substitution that was made.
     public struct Change: Sendable, Codable, Equatable {
+        /// The character as it was written.
         public let from: String
+        /// The character it was replaced with.
         public let to: String
+        /// Where it sits, in UTF-16 units.
         public let offset: Int
+        /// 1-based, as a person counts lines.
         public let line: Int
+        /// 1-based, as a person counts columns.
         public let column: Int
     }
 
